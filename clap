@@ -1,0 +1,106 @@
+#!/bin/sh
+#
+# clap — run Claude Code in a Podman container
+#
+
+set -e
+
+IMAGE_NAME="${CLAUDE_IMAGE:-clap:latest}"
+IMAGE_AGE_WARNING=14
+
+# --- Functions ---
+
+quit_error() {
+    local arg="$@"
+    echo "ERROR: $arg" >&2
+    exit 1
+}
+
+check_podman() {
+    if ! command -v podman >/dev/null 2>&1; then
+        echo "Error: podman not found" >&2
+        exit 1
+    fi
+
+    if ! podman image exists "$IMAGE_NAME" 2>/dev/null; then
+        echo "Error: image '$IMAGE_NAME' not found. Run 'make build' first." >&2
+        exit 1
+    fi
+
+    CREATED=$(podman inspect --format '{{.Created}}' "$IMAGE_NAME" 2>/dev/null | cut -d'.' -f1 | sed 's/T/ /')
+    if [ -n "$CREATED" ]; then
+        CREATED_TS=$(date -d "$CREATED" +%s 2>/dev/null || true)
+        NOW_TS=$(date +%s)
+        if [ -n "$CREATED_TS" ]; then
+            AGE_DAYS=$(( (NOW_TS - CREATED_TS) / 86400 ))
+            if [ "$AGE_DAYS" -ge "$IMAGE_AGE_WARNING" ]; then
+                echo "Warning: image '$IMAGE_NAME' is ${AGE_DAYS} days old. Consider running 'make build' to update." >&2
+            fi
+        fi
+    fi
+}
+
+load_env() {
+    if [ -f "$HOME/.clap/env" ]; then
+        . "$HOME/.clap/env"
+    fi
+}
+
+parse_args() {
+    ARGS=""
+    for arg in "$@"; do
+        if [ "$arg" = "--auto" ]; then
+            ARGS="$ARGS --dangerously-skip-permissions"
+        else
+            ARGS="$ARGS $arg"
+        fi
+    done
+}
+
+prepare_dirs() {
+    CLAUDE_DIR="$HOME/.clap/claude"
+    if [ ! -d "$CLAUDE_DIR" ]; then
+        mkdir -p "$CLAUDE_DIR"
+    fi
+}
+
+prepare_podman_args() {
+    PODMAN_ARGS=""
+
+    # VERTEXAI
+    if [ "$CLAUDE_CODE_USE_VERTEX" = "1" ]; then
+        GCLOUD_DIR="$HOME/.config/gcloud"
+        [ ! -d "$GCLOUD_DIR" ] && quit_error "$GCLOUD_DIR not found, Vertex AI credentials will not be available"
+        [ -z "$ANTHROPIC_VERTEX_PROJECT_ID" ] && quit_error "ANTHROPIC_VERTEX_PROJECT_ID not set"
+        [ -z "$CLOUD_ML_REGION" ] && quit_error "CLOUD_ML_REGION not set"
+
+        PODMAN_ARGS="$PODMAN_ARGS \
+            -e CLAUDE_CODE_USE_VERTEX=1 \
+            -e CLOUD_ML_REGION=$CLOUD_ML_REGION \
+            -e ANTHROPIC_VERTEX_PROJECT_ID=$ANTHROPIC_VERTEX_PROJECT_ID \
+            -v $GCLOUD_DIR:/home/claude/.config/gcloud:ro"
+    fi
+
+    # GITHUB TOKEN
+    [ -n "$GH_TOKEN" ] && PODMAN_ARGS="$PODMAN_ARGS -e GH_TOKEN=$GH_TOKEN"
+}
+
+run() {
+    podman run -it --rm \
+        --userns=keep-id \
+        --security-opt label=disable \
+        -v "$CLAUDE_DIR:/home/claude/.claude" \
+        -v "$(pwd):/workspace" \
+        $PODMAN_ARGS \
+        "$IMAGE_NAME" \
+        $ARGS
+}
+
+# --- Main ---
+
+check_podman
+load_env
+parse_args "$@"
+prepare_dirs
+prepare_podman_args
+run
