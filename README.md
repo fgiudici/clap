@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/clap.png" alt="clap logo" width="200">
+</p>
+
 # clap - Claude Agent in Podman
 
 Run [Claude Code](https://docs.anthropic.com/en/docs/claude-code) in a Podman container with Go, Python, Node.js, and common dev tools on a Fedora base.
