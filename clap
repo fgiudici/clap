@@ -62,6 +62,11 @@ prepare_dirs() {
     if [ ! -d "$CLAUDE_DIR" ]; then
         mkdir -p "$CLAUDE_DIR"
     fi
+
+    CLAUDE_JSON="$HOME/.clap/claude.json"
+    if [ ! -f "$CLAUDE_JSON" ]; then
+        echo '{}' > "$CLAUDE_JSON"
+    fi
 }
 
 prepare_podman_args() {
@@ -90,6 +95,7 @@ run() {
         --userns=keep-id \
         --security-opt label=disable \
         -v "$CLAUDE_DIR:/home/claude/.claude" \
+        -v "$CLAUDE_JSON:/home/claude/.claude.json" \
         -v "$(pwd):/workspace" \
         $PODMAN_ARGS \
         "$IMAGE_NAME" \

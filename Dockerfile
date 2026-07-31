@@ -35,8 +35,6 @@ ENV SHELL=/bin/bash
 
 RUN mkdir -p /home/claude/.claude /workspace && chmod 755 /home/claude
 
-COPY .claude.json /home/claude/.claude.json
-
 WORKDIR /workspace
 
 ENTRYPOINT ["claude"]
