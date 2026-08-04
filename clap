@@ -88,6 +88,9 @@ prepare_podman_args() {
 
     # GITHUB TOKEN
     [ -n "$GH_TOKEN" ] && PODMAN_ARGS="$PODMAN_ARGS -e GH_TOKEN=$GH_TOKEN"
+
+    # Be verbose on the return value: we don't want previous command value output as the return value
+    return 0
 }
 
 run() {
